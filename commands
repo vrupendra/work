@@ -1,0 +1,7 @@
+Execute Previous Commands with sudo
+[root@localhost ~]# !2
+Run last command
+[root@localhost ~]# !!
+Add a String of Text to an Existing File
+[root@localhost ~]# echo ‘string-of-text’ | sudo tee -a /home/node01/cat   [this will create a file if it doesnt exist and append if already exists]
+
