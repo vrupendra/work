@@ -1,3 +1,11 @@
+
+URL's :- 
+
+
+https://www.networkworld.com/author/Sandra-Henry_Stocker/
+
+==============
+
 Execute Previous Commands with sudo
 [root@localhost ~]# !2
 Run last command
@@ -5,3 +13,42 @@ Run last command
 Add a String of Text to an Existing File
 [root@localhost ~]# echo ‘string-of-text’ | sudo tee -a /home/node01/cat   [this will create a file if it doesnt exist and append if already exists]
 
+Finding the PID of the process using a specific port?
+
+$ sudo ss -lptn 'sport = :80'
+$ sudo netstat -nlp | grep :80
+$ sudo lsof -n -i :80 | grep LISTEN
+$ ss -pntl 'sport = :6379'
+$ fuser -v -n tcp 22
+
+de01@localhost ~]$ pgrep httpd -d' '
+6183 6186 6187 6188 6189 6190
+$ pgrep -c httpd  [ count no of processes, instead of printing the PID]
+
+And, if you want to display only the oldest or the newest of the processes being run by some particular users, use the -n (newest) or the -o (oldest) option.
+
+$ pgrep -u root -o -l
+1 init
+$ pgrep -u root -n -l
+18192 sshd
+
+$ pidof httpd
+
+su command examples
+#su -l username  [switch user with a login script]
+#su -s /bin/zsh [ use a diff shell]
+#su -p username [Use a Different User in the Same Environment]
+#sudo su - [ this will allow to regular user login as root user but enter its passwd istead of root users passwd]
+
+Command Comparison: su vs sudo
+sudo Command
+
+The sudo command grants a one-time or limited-time access to root functionality. Typically, the sudo command is used to quickly run an administrative command, then return to the user account’s regular permissions.
+
+su Command
+
+The su command lets you switch the current user to any other user. If you need to run a command as a different (non-root) user, use the –l [username] option to specify the user account. Additionally,su can also be used to change to a different shell interpreter on the fly.
+
+su is an older but more fully-featured command. It can duplicate the functionality of sudo by use of the –c option to pass a single command to the shell.
+
+To provide sudo access, the user has to be added to the sudo group.
