@@ -38,7 +38,12 @@ su command examples
 #su -l username  [switch user with a login script]
 #su -s /bin/zsh [ use a diff shell]
 #su -p username [Use a Different User in the Same Environment]
-#sudo su - [ this will allow to regular user login as root user but enter its passwd istead of root users passwd]
+$ su -   [ this will login as root and ask for root's passwd
+#sudo su - [ this will allow the regular user to login as root user but takes its own passwd istead of root users passwd]
+## Example##
+[node01@localhost ~]$ sudo su -
+[sudo] password for node01:
+
 
 Command Comparison: su vs sudo
 sudo Command
@@ -52,3 +57,11 @@ The su command lets you switch the current user to any other user. If you need t
 su is an older but more fully-featured command. It can duplicate the functionality of sudo by use of the –c option to pass a single command to the shell.
 
 To provide sudo access, the user has to be added to the sudo group.
+
+https://www.howtoforge.com/linux-adduser-addgroup-command/
+
+adduser --disabled-login [OPTIONS] user
+
+This option sets the password to !, which means "login is deactivated, user will be unable to login."
+
+Keep in mind that this will only prevent user login - you can still switch to this account from some other using the su command.
