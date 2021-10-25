@@ -1,19 +1,28 @@
 
 URL's :- 
 
+#Print #no of lines from a file
+$ head -10 top-output
+$ sed -n 1,8p top-output
+$ awk 'FNR<=5' top-output
+$ perl -ne'1..9 and print' top-output
+
+#Print only configuration directives from file
+
+$ grep -v "^#" /path/to/config/file
 
 https://www.networkworld.com/author/Sandra-Henry_Stocker/
 
 ==============
 
-Execute Previous Commands with sudo
+#Execute Previous Commands with sudo
 [root@localhost ~]# !2
 Run last command
 [root@localhost ~]# !!
 Add a String of Text to an Existing File
 [root@localhost ~]# echo ‘string-of-text’ | sudo tee -a /home/node01/cat   [this will create a file if it doesnt exist and append if already exists]
 
-Finding the PID of the process using a specific port?
+#Finding the PID of the process using a specific port?
 
 $ sudo ss -lptn 'sport = :80'
 $ sudo netstat -nlp | grep :80
@@ -45,7 +54,7 @@ $ su -   [ this will login as root and ask for root's passwd
 [sudo] password for node01:
 
 
-Command Comparison: su vs sudo
+#Command Comparison: su vs sudo
 sudo Command
 
 The sudo command grants a one-time or limited-time access to root functionality. Typically, the sudo command is used to quickly run an administrative command, then return to the user account’s regular permissions.
