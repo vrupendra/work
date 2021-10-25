@@ -10,7 +10,8 @@ $ perl -ne'1..9 and print' top-output
 #Print only configuration directives from file
 
 $ grep -v "^#" /path/to/config/file
-
+# grep -v "^#|^$"  -> The -v option invert the criteria. The regex ^$ matches and removes all blank lines and ^# matches and removes all comments 
+that starts with a “#”.
 https://www.networkworld.com/author/Sandra-Henry_Stocker/
 
 ==============
