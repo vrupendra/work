@@ -1,5 +1,10 @@
 
-URL's :- 
+URL's for Firwwalld :- 
+
+https://www.thegeekdiary.com/5-useful-examples-of-firewall-cmd-command/
+---
+Advanced Apache Configuration with SELinux on RHEL 7
+https://www.lisenet.com/2016/advanced-apache-configuration-with-selinux-on-rhel-7/
 
 #Print #no of lines from a file
 $ head -10 top-output
