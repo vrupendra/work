@@ -5,6 +5,15 @@ https://www.thegeekdiary.com/5-useful-examples-of-firewall-cmd-command/
 ---
 Advanced Apache Configuration with SELinux on RHEL 7
 https://www.lisenet.com/2016/advanced-apache-configuration-with-selinux-on-rhel-7/
+---
+How To Install the Apache Web Server on CentOS 7
+https://www.digitalocean.com/community/tutorials/how-to-install-the-apache-web-server-on-centos-7
+---
+REdHat doc for running http under SELINUX
+https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/selinux_users_and_administrators_guide/sect-managing_confined_services-the_apache_http_server-configuration_examples
+---
+Configuration Directives in httpd.conf
+https://web.mit.edu/rhel-doc/4/RH-DOCS/rhel-rg-en-4/s1-apache-config.html
 
 #Print #no of lines from a file
 $ head -10 top-output
