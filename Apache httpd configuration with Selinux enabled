@@ -1,0 +1,542 @@
+Advanced Apache Configuration with SELinux on RHEL 7
+Posted on 30/05/2016 by Lisenet 
+Link : https://www.lisenet.com/2016/advanced-apache-configuration-with-selinux-on-rhel-7/
+
+We are going to configure a couple of Apache virtual hosts, configure access restrictions on directories, deploy a basic CGI application and configure TLS security. 
+
+Install Apache
+We use a RHEL 7.0 virtual server in this article.
+
+Install a web server package group:
+
+# yum groupinstall -y web-server
+If we want to see what other groups are available, we can do:
+
+# yum group list ids
+Enable Apache service on boot and configure firewall:
+
+# systemctl enable httpd && systemctl start httpd
+# firewall-cmd --permanent --add-service={http,https}
+# firewall-cmd --reload
+Apache SELinux Related Settings
+See what provides the packages that we need:
+
+# yum provides *\sealert *\semanage *\sepolicy
+Install required packages:
+
+# yum install -y policycoreutils-python policycoreutils-devel setroubleshoot-server
+Let us see the default SELinux context:
+
+# ls -Z /var/www
+drwxr-xr-x. root root system_u:object_r:httpd_sys_script_exec_t:s0 cgi-bin
+drwxr-xr-x. root root system_u:object_r:httpd_sys_content_t:s0 html
+There are many SELinux booleans and context types for Apache. To get an overview of what’s available, do:
+
+# getsebool -a | grep httpd
+# semanage fcontext --list | grep httpd
+SELinux Booleans
+Some the most significant boolean settings with their default values are listed below.
+
+To allow Apache to modify public files (with the public_content_rw_t type) used for public file transfer services:
+
+httpd_anon_write --> off
+To allow Apache scripts and modules to connect to the network using TCP:
+
+httpd_can_network_connect --> off
+To allow Apache scripts and modules to connect to databases over the network:
+
+httpd_can_network_connect_db --> off
+To allow Apache to act as an FTP client connecting to the ftp port and ephemeral ports:
+
+httpd_can_connect_ftp --> off
+To allow Apache to connect to the LDAP port:
+
+httpd_can_connect_ldap --> off
+To allow Apache daemon to send mail:
+
+httpd_can_sendmail --> off
+To allow Apache CGI support:
+
+httpd_enable_cgi --> on
+To allow Apache to read home directories:
+
+httpd_enable_homedirs --> off
+To unify Apache to communicate with the terminal. Needed for entering the passphrase for certificates at the terminal:
+
+httpd_tty_comm --> off
+To allow Apache to access CIFS or NFS file systems:
+
+httpd_use_cifs --> off
+httpd_use_nfs --> off
+It can be tricky to remember all those SELinux setting above, therefore we need to know the place we can get some help.
+
+The most powerful way of getting the SELinux information we need is by using man pages. On RHEL 7, however, SELinux man pages are not installed by default. We need to install them and update the manual page index caches:
+
+# sepolicy manpage -a -p /usr/share/man/man8
+# mandb
+We can now search for SELinux pages:
+
+# man -k _selinux | less
+And we should find one for Apache:
+
+httpd_selinux (8)   - Security Enhanced Linux Policy for the httpd processes
+SELinux Context
+To mitigate security risks, different SELinux context types are available. Some are listed below:
+
+httpd_sys_content_t – set on directories that Apache is allowed access to,
+httpd_sys_content_rw_t – set on directories that Apache is allowed read/write access to,
+httpd_sys_script_exec_t – used for directories that contain executable scripts.
+To allow Apache to modify public files used for public file transfer services, directories/files must be labeled public_content_rw_t.
+
+SELinux Ports
+SELinux prevents Apache from binding on non-default ports. To see which ports are allowed, do:
+
+# semanage port --list | grep http
+http_cache_port_t    tcp   8080, 8118, 8123, 10001-10010
+http_cache_port_t    udp   3130
+http_port_t          tcp   80, 81, 443, 488, 8008, 8009, 8443, 9000
+Configure a Virtual Host
+We are going to configure two virtual hosts, vhost1 and vhost2.
+
+Open the file /etc/hosts and add the following line:
+
+10.8.8.71 vhost1.rhce.local vhost2.rhce.local
+We use the “rhce.local” domain within our lab. As you may guess, it’s an RHCE preparation.
+
+Basic Virtual Host vhost1
+Create a DocumentRoot with some basic content:
+
+# mkdir /var/www/html/vhost1
+# echo "vhost1" >/var/www/html/vhost1/index.html
+# touch /var/www/html/vhost1/favicon.ico
+Restore default SELinux security contexts:
+
+# restorecon -Rv /var/www/html/vhost1
+Create a virtual host configuration file /etc/httpd/conf.d/vhosts.conf and add the following:
+
+<VirtualHost *:80>
+ServerAdmin root@localhost
+ServerName vhost1.rhce.local
+
+DocumentRoot "/var/www/html/vhost1"
+<Directory "/var/www/html/vhost1">
+   Options None
+   AllowOverride None
+   Require all granted
+</Directory>
+
+LogLevel info
+ErrorLog "logs/vhost1-error_log"
+CustomLog "logs/vhost1-access_log" common
+</VirtualHost>
+Open the file /etc/httpd/conf/httpd.conf, find this line:
+
+<Directory "/var/www/html">
+And put the following:
+
+Options None
+Disable the default SSL site for now:
+
+# mv /etc/httpd/conf.d/ssl.conf /etc/httpd/conf.d/ssl.conf.disabled
+Test Apache configuration and restart the service:
+
+# httpd -t
+# systemctl restart httpd
+Check virtual hosts:
+
+# httpd -t -D DUMP_VHOSTS
+VirtualHost configuration:
+*:80                   is a NameVirtualHost
+         default server vhost1.rhce.local (/etc/httpd/conf.d/vhosts.conf:1)
+         port 80 namevhost vhost1.rhce.local (/etc/httpd/conf.d/vhosts.conf:1)
+         port 80 namevhost vhost1.rhce.local (/etc/httpd/conf.d/vhosts.conf:1)
+Install a CLI browser and test the site:
+
+# yum install -y elinks
+# elinks http://vhost1.rhce.local/
+Virtual Host on a TCP Port 8888 and Mounted iSCSI Device vhost2
+Add the following to /etc/httpd/conf/httpd.conf:
+
+Listen 80
+Listen 8888
+If we now try to restart the Apache service, we’ll get the following error:
+
+httpd[]: (13)Permission denied: AH00072: make_sock: could not bind to addres...:8888
+SELinux is preventing Apache from binding to port 8888.
+
+Allow Apache to listen on TCP port 8888:
+
+# semanage port -a -t http_port_t -p tcp 8888
+Configure firewall to allow inbound traffic:
+
+# firewall-cmd --permanent --add-port=8888/tcp
+# firewall-cmd --reload
+Create a DocumentRoot:
+
+# mkdir /mnt/block1/vhost2
+# echo "vhost2" >/mnt/block1/vhost2/index.html
+Add file-context for everything under /mnt/block1:
+
+# semanage fcontext -a -t httpd_sys_content_t "/mnt/block1(/.*)?"
+# restorecon -Rv /mnt/block1
+Open the file /etc/httpd/conf.d/vhosts.conf and add the following:
+
+<VirtualHost *:8888>
+ServerAdmin root@localhost
+ServerName vhost2.rhce.local
+
+DocumentRoot "/mnt/block1/vhost2"
+<Directory "/mnt/block1/vhost2">
+   Options None
+   AllowOverride None
+   Require all granted
+</Directory>
+
+LogLevel error
+ErrorLog "logs/vhost2-error_log"
+CustomLog "logs/vhost2-access_log" common
+</VirtualHost>
+Check configuration and restart the service:
+
+# httpd -t
+# systemctl restart httpd
+A new virtual host should now be listed:
+
+# httpd -t -D DUMP_VHOSTS
+VirtualHost configuration:
+*:80                   is a NameVirtualHost
+         default server vhost1.rhce.local (/etc/httpd/conf.d/vhosts.conf:1)
+         port 80 namevhost vhost1.rhce.local (/etc/httpd/conf.d/vhosts.conf:1)
+         port 80 namevhost vhost1.rhce.local (/etc/httpd/conf.d/vhosts.conf:1)
+*:8888                 is a NameVirtualHost
+         default server vhost2.rhce.local (/etc/httpd/conf.d/vhosts.conf:17)
+         port 8888 namevhost vhost2.rhce.local (/etc/httpd/conf.d/vhosts.conf:17)
+         port 8888 namevhost vhost2.rhce.local (/etc/httpd/conf.d/vhosts.conf:17)
+Test:
+
+# elinks http://vhost2.rhce.local:8888/
+Now, if we had a virtual host on an NFS share, we would want to allow Apache to access NFS file system. We would need to tell SELinux about this by enabling the httpd_use_nfs boolean:
+
+# setsebool -P httpd_use_nfs=1
+Another way to allow Apache to access files on NFS without enabling the boolean above would be to label them as httpd_sys_content_t or public_content_t (SELinux fcontext), othewise search permissions will be missing.
+
+Configure Access Restrictions on Directories
+We are going to configure authentication on a per-directory basis.
+
+Host-based Security
+On the vhost1, create a private directory that we can use with host-based restrictions:
+
+# mkdir /var/www/html/vhost1/private
+# echo "private-vh1" >/var/www/html/vhost1/private/index.html
+Open the file /etc/httpd/conf.d/vhosts.conf and add the following under the vhost1 configuration:
+
+<Directory "/var/www/html/vhost1/private">
+   AllowOverride None
+   Options None
+   Require ip 10.8.8.1/32
+</Directory>
+Access to the private directory is allowed from the IP 10.8.8.1/32 only.
+
+Now, if we try locally, we should get a 403 permission denied error.
+
+# elinks http://vhost1.rhce.local/private/
+If we wanted to allow access to every client but the IP 10.8.8.1/32, we would configure the virtual host this way:
+
+<Directory "/var/www/html/vhost1/private">
+   AllowOverride None
+   Options None
+   <RequireAll>
+     Require all granted
+     Require not ip 10.8.8.1/32
+   </RequireAll>
+</Directory>
+Visitors coming from the address 10.8.8.1 will not be able to see any content.
+
+As per Apache documentation, the Require provides a variety of different ways to allow or deny access to resources. In conjunction with the RequireAll, RequireAny and RequireNone directives, these requirements may be combined in arbitrarily complex ways, to enforce whatever access policy we want to have.
+
+By default all Require directives are handled as though contained within a RequireAny container directive. In other words, if any of the specified authorisation methods succeed, then authorisation is granted.
+
+For example, access restriction below would allow connections to portions of our site from any client but my1337.hacker.local, *.example.com and subnet 10.8.8.0/24:
+
+<RequireAll>
+  Require all granted
+  Require not host my1337.hacker.local
+  Require not host example.com
+  Require not ip 10.8.8.0/24
+</RequireAll
+Only complete components are matched, so the above example will match test.example.org but it will not match testexample.org. This configuration will cause Apache to perform a double reverse DNS lookup on the client IP address, regardless of the setting of the HostnameLookups directive. It will do a reverse DNS lookup on the IP address to find the associated hostname, and then do a forward lookup on the hostname to assure that it matches the original IP address. Only if the forward and reverse DNS are consistent and the hostname matches will access be allowed.
+
+User-based Security
+On the vhost2, create a private directory that we can use for user-based authentication:
+
+# mkdir /mnt/block1/vhost2/private
+# echo "private-vh2" >/mnt/block1/vhost2/private/index.html
+Create a password file /etc/httpd/conf/htpasswd to use with Apache, and add a couple of users, alice and vince:
+
+# htpasswd -c /etc/httpd/conf/htpasswd alice
+# htpasswd /etc/httpd/conf/htpasswd vince
+Open the file /etc/httpd/conf.d/vhosts.conf and add the following under the vhost2 configuration:
+
+<Directory "/mnt/block1/vhost2/private">
+   AuthType Basic
+   AuthName "Private"
+   AuthUserFile "/etc/httpd/conf/htpasswd"
+   Require user vince
+</Directory>
+To make Apache authentication configuration easier to remember, we can use the httpd-manual package:
+
+# yum install -y httpd-manual
+Manual pages can be accessed on the localhost:
+
+# elinks http://localhost/manual/
+However, rather than browsing the whole site, it’s sometimes easier to open specific pages (they are located under /usr/share/httpd/manual/) which we are interested in, for example, a manual to basic authentication:
+
+# elinks /usr/share/httpd/manual/mod/mod_auth_basic.html
+Check configuration for errors and restart the service:
+
+# httpd -t
+# systemctl restart httpd
+Testing time, only logging in with vince’s credentials should allow access:
+
+# elinks http://vhost2.rhce.local:8888/private/
+Group Based Security
+On the vhost2, create a group directory that we can use for group-based authentication:
+
+# mkdir /mnt/block1/vhost2/group
+# echo "group" >/mnt/block1/vhost2/group/index.html
+Add another user, sandy, to the Apache password file:
+
+# htpasswd /etc/httpd/conf/htpasswd sandy
+Create a group file /etc/httpd/conf/htgroup to use with Apache, and add the following:
+
+admins: alice sandy
+Open the file /etc/httpd/conf.d/vhosts.conf and add the following under the vhost2 configuration:
+
+<Directory "/mnt/block1/vhost2/group">
+   AuthType Basic
+   AuthName "Group"
+   AuthGroupFile "/etc/httpd/conf/htgroup"
+   AuthUserFile "/etc/httpd/conf/htpasswd"
+   Require group admins
+</Directory>
+As always, check the config and restart the service:
+
+# httpd -t
+# systemctl restart httpd
+Now logging in with vince’s credentials shouldn’t work, as only alice and sandy are members of the admins group.
+
+# elinks http://vhost2.rhce.local:8888/group/
+Configure Group-managed Content
+By default, only the root user has write access to the DocumentRoot. If we have a group of users who need to be able to write files to the DocumentRoot, we need to configure write access.
+
+To set an ACL that allows members of the devops group write access to the DocumentRoot of the vhost2 virtual host, we can use the following commands:
+
+# groupadd devops
+# setfacl -R -m g:devops:rwX /mnt/block1/vhost2
+# setfacl -R -m d:g:devops:rwx /mnt/block1/vhost2
+An uppercase X is used to set the execute bit only to directories and not to files.
+
+# getfacl /mnt/block1/vhost2
+# file: mnt/block1/vhost2
+# owner: root
+# group: root
+user::rwx
+group::r-x
+group:devops:rwx
+mask::rwx
+other::r-x
+default:user::rwx
+default:group::r-x
+default:group:devops:rwx
+default:mask::rwx
+default:other::r-x
+Add a user to the devops group, login and try to create a new file to see if all works as expected:
+
+# useradd -m -G devops dev1
+# su - dev1
+$ touch /mnt/block1/vhost2/somefile
+Write a Basic CGI Application
+We are going to write a bash application on the virtual host vhost2 that sends an email to the root user. We are going to need the mailx package:
+
+# yum install -y mailx
+There should be no mail at the moment:
+
+# mailx
+No mail for root
+Create a folder to store web applications:
+
+# mkdir /mnt/block1/vhost2/app
+Create a web application and make it executable:
+
+# touch /mnt/block1/vhost2/app/email.sh
+# chmod a+x /mnt/block1/vhost2/app/email.sh
+Now, as per Apache documentation, there are two main differences between “regular” programming, and CGI programming.
+
+First, all output from our CGI program must be preceded by a MIME-type header. This is HTTP header that tells the client what sort of content it is receiving. Most of the time, this will look like Content-type: text/html.
+
+Secondly, our output needs to be in HTML, or some other format that a browser will be able to display. Most of the time, this will be HTML, but occasionally we might write a CGI program that outputs a gif image, or other non-HTML content.
+
+Taking the above into account, we can use the following content for our CGI application:
+
+#!/bin/bash
+echo -e "Content-type: text/html\n\n";
+echo "<html>";
+echo "<body>";
+echo "email from httpd"|mailx -s WebApp root;
+echo "Email has been sent.";
+echo "</body>";
+echo "</html>";
+The first line tells Apache that this program can be executed by feeding the file to the interpreter found at the location /bin/bash. The second line prints the content-type declaration we talked about, followed by two carriage-return newline pairs. This puts a blank line after the header to indicate the end of the HTTP headers, and the beginning of the body. The other lines send an email to the root user and print the string “Email has been sent.”.
+
+One other thing, we need to take care of SELinux context for the app folder.
+
+Let us take a look at the defaults:
+
+# ls -Z /var/www/
+drwxr-xr-x. root root system_u:object_r:httpd_sys_script_exec_t:s0 cgi-bin
+drwxr-xr-x. root root system_u:object_r:httpd_sys_content_t:s0 html
+We are going to apply the same context as for the cgi-bin folder:
+
+# semanage fcontext -a -t httpd_sys_script_exec_t "/mnt/block1/vhost2/app(/.*)?"
+# restorecon -Rv /mnt/block1/vhost2/app
+Note that there is a very good example in the “Examples” section at the end of man semanage-fcontext.
+
+We also need to allow Apache to send emails permanently, otherwise SELinux will block them:
+
+# setsebool -P httpd_can_sendmail=1
+Open the file /etc/httpd/conf.d/vhosts.conf and add the following under the vhost2 configuration:
+
+<Directory "/mnt/block1/vhost2/app">
+   AllowOverride None
+   Options ExecCGI
+   AddHandler cgi-script .sh
+   Require all granted
+</Directory>
+We basically want to allow CGI program execution for any file ending .sh in the app directory.
+
+Remember the http-manual package that we installed previously? Handy CGI configuration examples can be found here:
+
+# elinks /usr/share/httpd/manual/howto/cgi.html
+Verify configuration and restart the service:
+
+# httpd -t
+# systemctl restart httpd
+Test:
+
+# elinks http://vhost2.rhce.local:8888/app/email.sh
+There should be an email received from Apache:
+
+# mailx -H
+>   1 Apache    Mon May 30 19:27  19/611   "WebApp"
+Configure TLS Security
+TLS Virtual Host
+Let us take care of the firewall first, if not already configured:
+
+# firewall-cmd --permanent --add-service=https 
+# firewall-cmd --reload
+We can generate an SSL certificate with openssl, or with genkey. For the latter, install the following:
+
+# yum install crypto-utils
+If we were to use genkey, it would look something like this:
+
+# genkey --days 365 vhost1.rhce.local
+However, a faster way for us to create a certificate is with openssl. For those struggling to remember the syntax, take a look at the file /etc/pki/tls/certs/make-dummy-cert. It contains the following line:
+
+openssl req -newkey rsa:2048 -keyout $PEM1 -nodes -x509 -days 365 -out $PEM2
+That’s all we need to generate a new self-signed SSL certificate.
+
+# openssl req -newkey rsa:2048 -keyout /etc/pki/tls/private/vhost1.rhce.local.key \
+  -nodes -x509 -days 365 -out /etc/pki/tls/certs/vhost1.rhce.local.crt
+Ensure the Common Name matches with the ServerName for the virtual host the certificate is generated for.
+
+Enable the default SSL host:
+
+# mv /etc/httpd/conf.d/ssl.conf.disabled /etc/httpd/conf.d/ssl.conf
+Open the file and add the following, right under the <VirtualHost _default_:443>:
+
+DocumentRoot "/var/www/html/vhost1"
+ServerName vhost1.rhce.local
+SSLEngine on
+SSLProtocol all -SSLv2 -SSLv3
+SSLCertificateFile /etc/pki/tls/certs/vhost1.rhce.local.crt
+SSLCertificateKeyFile /etc/pki/tls/private/vhost1.rhce.local.key
+Check configuration and restart the service:
+
+# httpd -t
+# systemctl restart httpd
+TLS virtual host should be present now:
+
+# httpd -t -D DUMP_VHOSTS
+VirtualHost configuration:
+*:443                  is a NameVirtualHost
+         default server vhost1.rhce.local (/etc/httpd/conf.d/ssl.conf:56)
+         port 443 namevhost vhost1.rhce.local (/etc/httpd/conf.d/ssl.conf:56)
+         port 443 namevhost vhost1.rhce.local (/etc/httpd/conf.d/ssl.conf:56)
+*:80                   is a NameVirtualHost
+         default server vhost1.rhce.local (/etc/httpd/conf.d/vhosts.conf:1)
+         port 80 namevhost vhost1.rhce.local (/etc/httpd/conf.d/vhosts.conf:1)
+         port 80 namevhost vhost1.rhce.local (/etc/httpd/conf.d/vhosts.conf:1)
+*:8888                 is a NameVirtualHost
+         default server vhost2.rhce.local (/etc/httpd/conf.d/vhosts.conf:26)
+         port 8888 namevhost vhost2.rhce.local (/etc/httpd/conf.d/vhosts.conf:26)
+         port 8888 namevhost vhost2.rhce.local (/etc/httpd/conf.d/vhosts.conf:26)
+Note that elinks may not work with SSL, test with curl instead:
+
+# curl --insecure https://vhost1.rhce.local
+vhost1
+Check if SSLv3 is disabled (it’s considered insecure nowadays):
+
+# curl --insecure --sslv3 https://vhost1.rhce.local
+curl: (35) Cannot communicate securely with peer: no common encryption algorithm(s).
+Redirect to TLS
+We want all HTTP traffic coming to the vhost1 to be redirected to HTTPS automatically.
+
+We may configure the above by using mod_rewrite:
+
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI}
+However, if we check the manual, there is a simple redirect that we can use:
+
+# elinks /usr/share/httpd/manual/rewrite/avoid.html
+Let us add the below line to the vhost1 configuration:
+
+Redirect / https://vhost1.rhce.local/
+Test configuration and restart the service:
+
+# httpd -t
+# systemctl restart httpd
+Test with curl, automatic rewrite should be working:
+
+# curl -v -L --insecure http://vhost1.rhce.local
+* About to connect() to vhost1.rhce.local port 80 (#0)
+*   Trying 10.8.8.71...
+* Connected to vhost1.rhce.local (10.8.8.71) port 80 (#0)
+> GET / HTTP/1.1
+> User-Agent: curl/7.29.0
+> Host: vhost1.rhce.local
+> Accept: */*
+> 
+< HTTP/1.1 302 Found
+< Date: Mon, 30 May 2016 18:55:44 GMT
+< Server: Apache/2.4.6 (Red Hat) OpenSSL/1.0.1e-fips mod_fcgid/2.3.9
+< Location: https://vhost1.rhce.local/
+< Content-Length: 210
+< Content-Type: text/html; charset=iso-8859-1
+< * Ignoring the response-body * Connection #0 to host vhost1.rhce.local left intact * Issue another request to this URL: 'https://vhost1.rhce.local/' * Found bundle for host vhost1.rhce.local: 0x7542c0 * About to connect() to vhost1.rhce.local port 443 (#1) * Trying 10.8.8.71... * Connected to vhost1.rhce.local (10.8.8.71) port 443 (#1) * Initializing NSS with certpath: sql:/etc/pki/nssdb * skipping SSL peer certificate verification * SSL connection using TLS_DHE_RSA_WITH_AES_128_CBC_SHA * Server certificate: * subject: CN=vhost1.rhce.local,O=vhost1,L=vhost1,C=GB * start date: May 30 18:22:37 2016 GMT * expire date: May 30 18:22:37 2017 GMT * common name: vhost1.rhce.local * issuer: CN=vhost1.rhce.local,O=vhost1,L=vhost1,C=GB > GET / HTTP/1.1
+> User-Agent: curl/7.29.0
+> Host: vhost1.rhce.local
+> Accept: */*
+> 
+< HTTP/1.1 200 OK
+< Date: Mon, 30 May 2016 18:55:44 GMT
+< Server: Apache/2.4.6 (Red Hat) OpenSSL/1.0.1e-fips mod_fcgid/2.3.9
+< Last-Modified: Mon, 30 May 2016 17:19:37 GMT
+< ETag: "7-534127600f458"
+< Accept-Ranges: bytes
+< Content-Length: 7
+< Content-Type: text/html; charset=UTF-8
+< 
+vhost1
+* Connection #1 to host vhost1.rhce.local left intact
+This entry was posted in Linux, Webserver and tagged Apache2, CentOS, EX300, RHCE, RHEL, SELinux. Bookmark the permalink. If you notice any errors, please contact us.
