@@ -1,7 +1,7 @@
 
 
 Apache Web Server
-
+Link : https://www.digitalocean.com/community/tutorials/how-to-install-the-apache-web-server-on-centos-7
 
 sudo mkdir -p /var/www/influxz/html
 
