@@ -1,0 +1,102 @@
+
+
+Apache Web Server
+
+
+sudo mkdir -p /var/www/influxz/html
+
+sudo mkdir -p /var/www/influxz/html/log
+
+sudo chown -R $USER:$USER /var/www/influxz/html
+
+sudo chmod -R 755 /var/www
+
+sudo vi /var/www/influxz/html/index.html
+
+---
+<html>
+  <head>
+    <title>Welcome to your website!</title>
+  </head>
+  <body>
+    <h1>Success! The your_domain virtual host is working!</h1>
+  </body>
+</html>
+---
+
+sudo mkdir /etc/httpd/sites-available /etc/httpd/sites-enabled
+
+sudo vi /etc/httpd/conf/httpd.conf
+
+Add this line to the end of the file:
+
+IncludeOptional sites-enabled/*.conf
+---
+
+sudo vi /etc/httpd/sites-available/influxz.conf
+
+---
+<VirtualHost *:80>
+    ServerName www.influxz
+    ServerAlias influxz
+    DocumentRoot /var/www/influxz/html
+    ErrorLog /var/www/influxz/log/error.log
+    CustomLog /var/www/influxz/log/requests.log combined
+</VirtualHost>
+
+---
+
+sudo ln -s /etc/httpd/sites-available/influxz.conf /etc/httpd/sites-enabled/influxz.conf
+
+SELINUX adjustment/config for apache custom log directory
+
+sudo setsebool -P httpd_unified 1
+
+sudo ls -dZ /var/www/influxz/html/log/
+---> drwxr-xr-x. node02 node02 unconfined_u:object_r:httpd_sys_content_t:s0 /var/www/influxz/html/log/
+
+sudo semanage fcontext -a -t httpd_log_t "/var/www/influxz/html/log(/.*)?"
+
+sudo restorecon -R -v /var/www/influxz/html/log    | this is imp since without it apache cant write to the log files in this custom directory
+
+
+
+ 9  sudo yum groupinstall -y webserver
+ 
+   16  sudo firewall-cmd --zone=public --permanent --add-service=http
+   17  sudo firewall-cmd --zone=public --permanent --add-service=https
+   18  sudo firewall-cmd --reload
+   19  sudo systemctl status httpd
+   20  hostname -I
+   21  cat /etc/hosts
+   22  cat /etc/hostname
+   23  sudo systemctl status httpd
+   24  curl -4 icanhazip.com
+   25  sudo yum install elinks elynx
+   26  elinks http://192.168.1.18
+   27  sudo mkdir -p /var/www/influxz/html
+   28  sudo mkdir -p /var/www/influxz/html/log
+   29  sudo chown -R $USER:$USER /var/www/influxz/html
+   30  sudo chmod -R 755 /var/www
+   31  sudo vi /var/www/influxz/html/index.html
+   32  sudo mkdir /etc/httpd/sites-available /etc/httpd/sites-enabled
+   33  sudo vi /etc/httpd/conf/httpd.conf
+   34  sudo vi /etc/httpd/sites-available/influxz.conf
+   35  ls -lrth /etc/httpd/sites-available/influxz.conf
+   36  sudo ln -s /etc/httpd/sites-available/influxz.conf /etc/httpd/sites-enabled/influxz.conf
+   37  sudo setsebool -P httpd_unified 1
+
+   39  sudo ls -dZ /var/www/influxz/html/log/
+   40  sudo semanage fcontext -a -t httpd_log_t "/var/www/influxz/html/log(/.*)?"
+   41  sudo systemctl restart httpd
+   42  sudo systemctl restart httpd.service
+   43  sudo systemctl status httpd.service
+   44  ls -ld /var/www/influxz/html/log/
+   45  sudo vim /etc/httpd/sites-enabled/influxz.conf
+
+   47  sudo systemctl status httpd.service
+   48  sudo systemctl restart httpd.service
+   49  sudo systemctl status httpd.service
+   50  elinks http://192.168.1.18
+   
+   
